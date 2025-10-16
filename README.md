@@ -25,3 +25,29 @@ Use o shortcode `[simulador_financiamento]` em qualquer página/post:
 
 ```php
 [simulador_financiamento]
+
+🛠️ Requisitos
+WordPress 5.0+
+
+PHP 7.4+
+
+MySQL 5.6+
+
+📋 Shortcodes Disponíveis
+[simulador_financiamento] - Simulador completo
+
+[simulador_resultados] - Apenas resultados
+
+🎨 Personalização
+Acesse Simulador > Personalização para:
+
+Alterar cores do simulador
+
+Upload de logo
+
+Modificar textos
+
+Configurar emails
+
+📞 Suporte
+Para suporte, entre em contato com o desenvolvedor.
