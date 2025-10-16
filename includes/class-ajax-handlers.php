@@ -179,3 +179,79 @@ class SimuladorAjaxHandlers {
         if ($dados['tipo_taxa'] === 'modalidade' && !empty($dados['modalidade_id'])) {
             global $wpdb;
             $modalidade = $wpdb->get_row($wpdb->prepare(
+                "SELECT taxa_juros FROM {$wpdb->prefix}simulador_modalidades WHERE id = %d",
+                $dados['modalidade_id']
+            ));
+            return $modalidade ? floatval($modalidade->taxa_juros) : 0;
+        } else {
+            return floatval($dados['taxa_juros_personalizada'] ?? 0);
+        }
+    }
+    
+    private function salvar_simulacao_bd($dados, $resultado) {
+        global $wpdb;
+        
+        $simulacao_data = [
+            'tipo_simulacao' => $dados['tipo_simulacao'],
+            'valor_imovel' => $dados['valor_imovel'] ?? $resultado['valor_maximo_imovel'] ?? $resultado['valor_imovel_calculado'] ?? null,
+            'valor_entrada' => $dados['entrada'] ?? 0,
+            'prazo_meses' => $dados['prazo_meses'],
+            'renda_mensal' => $dados['renda_mensal'] ?? null,
+            'valor_parcela' => $dados['valor_parcela'] ?? null,
+            'taxa_juros' => $resultado['taxa_juros_utilizada'],
+            'tipo_amortizacao' => $dados['tipo_amortizacao'],
+            'parcela_calculada' => $resultado['parcela_calculada'],
+            'modalidade_id' => $dados['modalidade_id'] ?? null,
+            'ip_usuario' => $this->get_user_ip(),
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'created_at' => current_time('mysql')
+        ];
+        
+        $wpdb->insert($wpdb->prefix . 'simulador_simulacoes', $simulacao_data);
+    }
+    
+    public function enviar_email_relatorio() {
+        check_ajax_referer('simulador_nonce', 'nonce');
+        
+        $relatorio_id = intval($_POST['relatorio_id']);
+        $email_sender = new SimuladorEmailSender();
+        $pdf_handlers = new SimuladorPDFHandlers();
+        
+        $dados = $pdf_handlers->obter_dados_completos_relatorio($relatorio_id);
+        
+        if (!$dados) {
+            wp_send_json_error('Relatório não encontrado');
+        }
+        
+        $resultado = $email_sender->enviar_relatorio_completo($dados);
+        
+        if ($resultado) {
+            wp_send_json_success('Email enviado com sucesso!');
+        } else {
+            wp_send_json_error('Erro ao enviar email');
+        }
+    }
+    
+    public function carregar_formulario_informacoes() {
+        check_ajax_referer('simulador_nonce', 'nonce');
+        
+        $dados_simulacao = $_POST['dados'] ?? [];
+        
+        ob_start();
+        include SIMULADOR_PLUGIN_PATH . 'public/templates/formulario-informacoes.php';
+        $html = ob_get_clean();
+        
+        wp_send_json_success($html);
+    }
+    
+    private function get_user_ip() {
+        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+            return $_SERVER['HTTP_CLIENT_IP'];
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            return $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else {
+            return $_SERVER['REMOTE_ADDR'] ?? '';
+        }
+    }
+}
+?>
