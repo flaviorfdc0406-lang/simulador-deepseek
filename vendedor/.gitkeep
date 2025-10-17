@@ -1,0 +1,3 @@
+# Vendor Directory
+# Esta pasta será usada para dependências de terceiros instaladas via Composer
+# Mantenha esta pasta no controle de versão mesmo quando vazia
