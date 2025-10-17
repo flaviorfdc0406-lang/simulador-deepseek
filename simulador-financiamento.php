@@ -1,9 +1,11 @@
 <?php
 /**
- * Plugin Name: Simulador Financiamento Minimal
- * Description: Versão simplificada do simulador de financiamento
+ * Plugin Name: Simulador de Financiamento com Período de Obras
+ * Plugin URI: https://github.com/flaviorfdc0406-lang/simulador-deepseek
+ * Description: Sistema completo de simulação de financiamento com período de obras
  * Version: 1.0.0
  * Author: Flavio RFDC
+ * Text Domain: simulador-financiamento
  */
 
 // Prevenção de acesso direto
@@ -11,243 +13,256 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Versão minimal - apenas o essencial para ativar
-function simulador_minimal_init() {
-    // Criar tabelas se não existirem
-    simulador_criar_tabelas();
+// Definição de constantes
+define('SIMULADOR_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('SIMULADOR_PLUGIN_PATH', plugin_dir_path(__FILE__));
+define('SIMULADOR_VERSION', '1.0.0');
+
+// Verificar dependências do PHP
+register_activation_hook(__FILE__, 'simulador_check_requirements');
+
+function simulador_check_requirements() {
+    $errors = array();
     
-    // Adicionar shortcodes
-    add_shortcode('simulador_obra', 'simulador_obra_shortcode');
+    // Verificar versão do PHP
+    if (version_compare(PHP_VERSION, '7.4', '<')) {
+        $errors[] = 'Este plugin requer PHP 7.4 ou superior. Versão atual: ' . PHP_VERSION;
+    }
     
-    // Adicionar AJAX
-    add_action('wp_ajax_calcular_obra', 'simulador_calcular_obra_ajax');
-    add_action('wp_ajax_nopriv_calcular_obra', 'simulador_calcular_obra_ajax');
+    // Verificar extensões necessárias
+    $required_extensions = ['json', 'dom', 'libxml'];
+    foreach ($required_extensions as $ext) {
+        if (!extension_loaded($ext)) {
+            $errors[] = "Extensão PHP {$ext} não está habilitada";
+        }
+    }
+    
+    if (!empty($errors)) {
+        deactivate_plugins(plugin_basename(__FILE__));
+        wp_die(implode('<br>', $errors));
+    }
 }
 
-function simulador_criar_tabelas() {
+// Carregar classes principais - VERIFICANDO SE EXISTEM
+function simulador_carregar_classes() {
+    $classes = array(
+        'Database_Handler' => 'includes/class-database.php',
+        'Financiamento_Calculator' => 'includes/class-calculator.php',
+        'Obra_Calculator' => 'includes/class-obra-calculator.php',
+        'Admin_Dashboard' => 'includes/class-admin-dashboard.php',
+        'PDF_Generator' => 'includes/class-pdf-generator.php',
+        'Email_Sender' => 'includes/class-email-sender.php',
+        'Ajax_Handlers' => 'includes/class-ajax-handlers.php',
+        'Shortcodes_Handler' => 'includes/class-shortcodes.php'
+    );
+    
+    foreach ($classes as $class_name => $file_path) {
+        $full_path = SIMULADOR_PLUGIN_PATH . $file_path;
+        if (file_exists($full_path)) {
+            require_once $full_path;
+        } else {
+            error_log("Arquivo não encontrado: {$full_path}");
+        }
+    }
+}
+
+// Inicialização do plugin - VERSÃO SEGURA
+function simulador_init() {
+    try {
+        // Primeiro carrega as classes
+        simulador_carregar_classes();
+        
+        // Inicializar apenas handlers que existem
+        if (class_exists('Ajax_Handlers')) {
+            new Ajax_Handlers();
+        } else {
+            // Fallback básico para AJAX
+            add_action('wp_ajax_calcular_simulacao_obra', 'simulador_ajax_fallback');
+            add_action('wp_ajax_nopriv_calcular_simulacao_obra', 'simulador_ajax_fallback');
+        }
+        
+        if (class_exists('Shortcodes_Handler')) {
+            new Shortcodes_Handler();
+        } else {
+            // Fallback para shortcodes
+            add_shortcode('simulador_obra', 'simulador_shortcode_fallback');
+        }
+        
+        // Inicializar admin apenas se estiver na área administrativa E a classe existir
+        if (is_admin() && class_exists('Admin_Dashboard')) {
+            new Admin_Dashboard();
+        } else if (is_admin()) {
+            // Fallback para admin menu
+            add_action('admin_menu', 'simulador_admin_menu_fallback');
+        }
+        
+    } catch (Exception $e) {
+        error_log('Erro na inicialização do Simulador: ' . $e->getMessage());
+    }
+}
+
+// Fallback functions para quando as classes não existem
+function simulador_ajax_fallback() {
+    wp_send_json_success(array(
+        'message' => 'Plugin funcionando! Versão básica.',
+        'html' => '<div style="padding:20px; background:#d4edda; border-radius:5px;">
+                   <h3>✅ Plugin Simulador Ativo</h3>
+                   <p>Funcionalidade completa em desenvolvimento.</p>
+                   <p>Use o shortcode <code>[simulador_obra]</code> em suas páginas.</p>
+                   </div>'
+    ));
+}
+
+function simulador_shortcode_fallback($atts) {
+    return '
+    <div style="padding:20px; background:#e3f2fd; border-radius:8px; text-align:center;">
+        <h3>🏗️ Simulador de Financiamento com Obra</h3>
+        <p>Plugin instalado com sucesso!</p>
+        <p>Em breve todas as funcionalidades estarão disponíveis.</p>
+        <small>Use o menu "Simulador" no admin para configurações.</small>
+    </div>
+    ';
+}
+
+function simulador_admin_menu_fallback() {
+    add_menu_page(
+        'Simulador Financiamento',
+        'Simulador',
+        'manage_options',
+        'simulador-admin',
+        'simulador_admin_page_fallback',
+        'dashicons-calculator',
+        30
+    );
+}
+
+function simulador_admin_page_fallback() {
+    echo '
+    <div class="wrap">
+        <h1>Simulador de Financiamento</h1>
+        
+        <div style="background: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3>✅ Plugin Instalado com Sucesso!</h3>
+            <p>O plugin foi instalado e está funcionando. As seguintes funcionalidades estão disponíveis:</p>
+            <ul>
+                <li><strong>Shortcode:</strong> <code>[simulador_obra]</code></li>
+                <li><strong>Menu Admin:</strong> Configurações básicas</li>
+                <li><strong>Estrutura:</strong> Pronta para expansão</li>
+            </ul>
+        </div>
+        
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px;">
+            <h3>🚀 Próximos Passos</h3>
+            <p>Para habilitar todas as funcionalidades, verifique se todos os arquivos estão presentes:</p>
+            <ul>
+                <li><code>includes/class-ajax-handlers.php</code></li>
+                <li><code>includes/class-shortcodes.php</code></li>
+                <li><code>includes/class-obra-calculator.php</code></li>
+                <li><code>public/templates/formulario-obra.php</code></li>
+            </ul>
+        </div>
+    </div>
+    ';
+}
+
+// Registrar hooks de ativação/desativação
+register_activation_hook(__FILE__, 'simulador_activate');
+register_deactivation_hook(__FILE__, 'simulador_deactivate');
+
+function simulador_activate() {
+    // Criar tabelas básicas
+    simulador_criar_tabelas_basicas();
+    
+    // Configurações padrão
+    add_option('simulador_version', SIMULADOR_VERSION);
+    add_option('simulador_db_version', '1.0');
+    add_option('simulador_taxa_obra', '0.02');
+}
+
+function simulador_deactivate() {
+    // Limpar agendamentos se houver
+    wp_clear_scheduled_hook('simulador_daily_cleanup');
+}
+
+function simulador_criar_tabelas_basicas() {
     global $wpdb;
     
-    $table_name = $wpdb->prefix . 'simulador_simulacoes';
-    
     $charset_collate = $wpdb->get_charset_collate();
+    $table_name = $wpdb->prefix . 'simulador_simulacoes';
     
     $sql = "CREATE TABLE $table_name (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
-        dados text NOT NULL,
-        resultado text NOT NULL,
+        user_id bigint(20) DEFAULT NULL,
+        tipo_simulacao varchar(50) DEFAULT 'obra',
+        dados_simulacao longtext NOT NULL,
+        resultado longtext NOT NULL,
         data_criacao datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id)
+        status varchar(20) DEFAULT 'ativo',
+        PRIMARY KEY (id),
+        KEY user_id (user_id),
+        KEY data_criacao (data_criacao)
     ) $charset_collate;";
     
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
 }
 
-function simulador_obra_shortcode($atts) {
-    wp_enqueue_script('jquery');
-    
-    ob_start();
-    ?>
-    <div class="simulador-obra-minimal">
-        <h3>Simulador de Financiamento com Obra</h3>
-        
-        <form id="form-obra-simples">
-            <div class="campo">
-                <label>Valor do Imóvel (R$):</label>
-                <input type="number" name="valor_imovel" value="300000" required>
-            </div>
-            
-            <div class="campo">
-                <label>Entrada (R$):</label>
-                <input type="number" name="valor_entrada" value="60000">
-            </div>
-            
-            <div class="campo">
-                <label>Taxa de Juros (% ao ano):</label>
-                <input type="number" name="taxa_juros" value="8.5" step="0.1" required>
-            </div>
-            
-            <div class="campo">
-                <label>Prazo (anos):</label>
-                <select name="prazo_anos" required>
-                    <option value="20">20 anos</option>
-                    <option value="25">25 anos</option>
-                    <option value="30">30 anos</option>
-                </select>
-            </div>
-            
-            <div class="campo">
-                <label>Período de Obra (meses):</label>
-                <input type="number" name="periodo_obra" value="12" required>
-            </div>
-            
-            <div class="campo">
-                <label>Periodicidade:</label>
-                <select name="periodicidade" required>
-                    <option value="mensal">Mensal</option>
-                    <option value="trimestral">Trimestral</option>
-                    <option value="semestral">Semestral</option>
-                </select>
-            </div>
-            
-            <button type="button" id="btn-calcular-simples">Calcular</button>
-        </form>
-        
-        <div id="resultado-simples" style="display:none; margin-top:20px; padding:15px; background:#f9f9f9; border-radius:5px;"></div>
-    </div>
-    
-    <style>
-    .simulador-obra-minimal {
-        max-width: 600px;
-        margin: 20px auto;
-        padding: 20px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    .campo {
-        margin-bottom: 15px;
-    }
-    .campo label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-    }
-    .campo input, .campo select {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-    #btn-calcular-simples {
-        background: #007cba;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-    }
-    #btn-calcular-simples:hover {
-        background: #005a87;
-    }
-    </style>
-    
-    <script>
-    jQuery(document).ready(function($) {
-        $('#btn-calcular-simples').on('click', function() {
-            var dados = $('#form-obra-simples').serialize();
-            
-            $.post('<?php echo admin_url('admin-ajax.php'); ?>', {
-                action: 'calcular_obra',
-                dados: dados
-            }, function(resposta) {
-                if (resposta.success) {
-                    $('#resultado-simples').html(resposta.data).show();
-                } else {
-                    alert('Erro: ' + resposta.data);
-                }
-            });
-        });
-    });
-    </script>
-    <?php
-    return ob_get_clean();
+// Carregar text domain para internacionalização
+function simulador_load_textdomain() {
+    load_plugin_textdomain('simulador-financiamento', false, dirname(plugin_basename(__FILE__)) . '/languages');
 }
+add_action('init', 'simulador_load_textdomain');
 
-function simulador_calcular_obra_ajax() {
-    // Dados básicos do formulário
-    parse_str($_POST['dados'], $dados);
-    
-    $valor_imovel = floatval($dados['valor_imovel']);
-    $entrada = floatval($dados['valor_entrada']);
-    $taxa_juros = floatval($dados['taxa_juros']) / 100;
-    $prazo_anos = intval($dados['prazo_anos']);
-    $periodo_obra = intval($dados['periodo_obra']);
-    $periodicidade = sanitize_text_field($dados['periodicidade']);
-    
-    // Cálculo simples
-    $valor_financiado = $valor_imovel - $entrada;
-    
-    // Período de obra - apenas juros
-    $taxa_mensal_obra = 0.02; // 2% ao mês
-    $num_parcelas_obra = $periodo_obra;
-    
-    if ($periodicidade == 'trimestral') {
-        $num_parcelas_obra = ceil($periodo_obra / 3);
-        $taxa_mensal_obra = pow(1 + 0.02, 3) - 1;
-    } elseif ($periodicidade == 'semestral') {
-        $num_parcelas_obra = ceil($periodo_obra / 6);
-        $taxa_mensal_obra = pow(1 + 0.02, 6) - 1;
+// Enfileirar scripts e styles - SOMENTE SE OS ARQUIVOS EXISTIREM
+function simulador_enqueue_scripts() {
+    // CSS - verificar se existe
+    $css_path = SIMULADOR_PLUGIN_PATH . 'public/css/simulador.css';
+    if (file_exists($css_path)) {
+        wp_enqueue_style('simulador-public-css', SIMULADOR_PLUGIN_URL . 'public/css/simulador.css', array(), SIMULADOR_VERSION);
     }
     
-    $total_obra = $valor_financiado * $taxa_mensal_obra * $num_parcelas_obra;
-    
-    // Período de amortização
-    $taxa_mensal = pow(1 + $taxa_juros, 1/12) - 1;
-    $num_parcelas_amort = ($prazo_anos * 12) - $periodo_obra;
-    
-    $parcela_amort = $valor_financiado * $taxa_mensal * pow(1 + $taxa_mensal, $num_parcelas_amort) / 
-                    (pow(1 + $taxa_mensal, $num_parcelas_amort) - 1);
-    
-    $total_amortizacao = $parcela_amort * $num_parcelas_amort;
-    $total_geral = $total_obra + $total_amortizacao;
-    
-    // Gerar resultado
-    $html = '
-    <h4>Resultado da Simulação</h4>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0;">
-        <div style="background: #e8f5e8; padding: 10px; border-radius: 5px;">
-            <strong>Período de Obra</strong><br>
-            ' . $num_parcelas_obra . ' parcelas ' . $periodicidade . '<br>
-            Total: R$ ' . number_format($total_obra, 2, ',', '.') . '
-        </div>
-        <div style="background: #e3f2fd; padding: 10px; border-radius: 5px;">
-            <strong>Período Amortização</strong><br>
-            ' . $num_parcelas_amort . ' parcelas mensais<br>
-            Parcela: R$ ' . number_format($parcela_amort, 2, ',', '.') . '
-        </div>
-    </div>
-    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
-        <strong>Total do Financiamento:</strong> R$ ' . number_format($total_geral, 2, ',', '.') . '<br>
-        <small>Valor financiado: R$ ' . number_format($valor_financiado, 2, ',', '.') . '</small>
-    </div>
-    ';
-    
-    wp_send_json_success($html);
+    // JS - verificar se existe
+    $js_path = SIMULADOR_PLUGIN_PATH . 'public/js/simulador-frontend.js';
+    if (file_exists($js_path)) {
+        wp_enqueue_script('jquery');
+        wp_enqueue_script('simulador-frontend-js', SIMULADOR_PLUGIN_URL . 'public/js/simulador-frontend.js', array('jquery'), SIMULADOR_VERSION, true);
+        
+        // Localize script para AJAX
+        wp_localize_script('simulador-frontend-js', 'simulador_ajax', array(
+            'url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('simulador_nonce')
+        ));
+    }
 }
+add_action('wp_enqueue_scripts', 'simulador_enqueue_scripts');
+
+// Enfileirar scripts do admin - SOMENTE SE OS ARQUIVOS EXISTIREM
+function simulador_admin_scripts($hook) {
+    if (strpos($hook, 'simulador-admin') === false) {
+        return;
+    }
+    
+    $admin_css_path = SIMULADOR_PLUGIN_PATH . 'admin/assets/css/admin.css';
+    if (file_exists($admin_css_path)) {
+        wp_enqueue_style('simulador-admin-css', SIMULADOR_PLUGIN_URL . 'admin/assets/css/admin.css', array(), SIMULADOR_VERSION);
+    }
+    
+    $admin_js_path = SIMULADOR_PLUGIN_PATH . 'admin/assets/js/admin.js';
+    if (file_exists($admin_js_path)) {
+        wp_enqueue_script('simulador-admin-js', SIMULADOR_PLUGIN_URL . 'admin/assets/js/admin.js', array('jquery'), SIMULADOR_VERSION, true);
+    }
+}
+add_action('admin_enqueue_scripts', 'simulador_admin_scripts');
 
 // Inicializar quando todos os plugins estiverem carregados
-add_action('plugins_loaded', 'simulador_minimal_init');
+add_action('plugins_loaded', 'simulador_init');
 
-// Ativação - criar tabelas
-register_activation_hook(__FILE__, 'simulador_criar_tabelas');
+// Adicionar link de settings na lista de plugins
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'simulador_plugin_action_links');
 
-// Adicionar menu admin simples
-add_action('admin_menu', 'simulador_admin_menu');
-
-function simulador_admin_menu() {
-    add_menu_page(
-        'Simulador Financiamento',
-        'Simulador',
-        'manage_options',
-        'simulador-admin',
-        'simulador_admin_page',
-        'dashicons-calculator',
-        30
-    );
-}
-
-function simulador_admin_page() {
-    echo '
-    <div class="wrap">
-        <h1>Simulador de Financiamento</h1>
-        <p>Plugin funcionando corretamente!</p>
-        <div style="background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;">
-            <strong>✅ Plugin ativado com sucesso!</strong><br>
-            Use o shortcode <code>[simulador_obra]</code> em qualquer página ou post para exibir o simulador.
-        </div>
-    </div>
-    ';
+function simulador_plugin_action_links($links) {
+    $settings_link = '<a href="' . admin_url('admin.php?page=simulador-admin') . '">Configurações</a>';
+    array_unshift($links, $settings_link);
+    return $links;
 }
 ?>
