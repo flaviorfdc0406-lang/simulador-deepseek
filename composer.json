@@ -1,0 +1,44 @@
+{
+    "name": "flaviorfdc0406-lang/simulador-financiamento",
+    "description": "Plugin WordPress para simulação de financiamento com múltiplas modalidades, geração de PDF e relatórios",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Flavio RFDC",
+            "email": "flaviorfdc0406@gmail.com",
+            "homepage": "https://github.com/flaviorfdc0406-lang"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "ext-json": "*",
+        "ext-dom": "*",
+        "ext-libxml": "*"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.7",
+        "wp-coding-standards/wpcs": "^3.0",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SimuladorFinanciamento\\": "includes/"
+        }
+    },
+    "scripts": {
+        "lint": "phpcs --standard=WordPress includes/ public/ admin/",
+        "lint-fix": "phpcbf --standard=WordPress includes/ public/ admin/",
+        "test": "phpunit",
+        "check-cs": "phpcs --standard=phpcs.xml.dist"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "extra": {
+        "wordpress-install-dir": "wp"
+    }
+}
